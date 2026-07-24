@@ -8,6 +8,7 @@
       mcp-config = import ./modules/mcp-config.nix;
       opencode-config = import ./modules/opencode-config.nix;
       claude-code-config = import ./modules/claude-code-config.nix;
+      claude-desktop-config = import ./modules/claude-desktop-config.nix;
       cursor-config = import ./modules/cursor-config.nix;
       antigravity-config = import ./modules/antigravity-config.nix;
       ai-skills = import ./modules/ai-skills.nix;
@@ -16,6 +17,7 @@
           mcp-config
           opencode-config
           claude-code-config
+          claude-desktop-config
           cursor-config
           antigravity-config
           ai-skills
