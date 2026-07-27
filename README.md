@@ -9,6 +9,30 @@ options — the modules never embed credentials. The consumer is responsible for
 populating those environment variables (e.g. from sops-nix, `/run/secrets`, or
 a shell profile).
 
+```mermaid
+graph LR
+    subgraph flake["nix-ai-tooling · homeManagerModules"]
+        MCP["mcp-config<br/>(shared MCP registry)"]
+        OC["opencode-config"]
+        CC["claude-code-config"]
+        CD["claude-desktop-config"]
+        CUR["cursor-config"]
+        AG["antigravity-config"]
+        SK["ai-skills"]
+    end
+    MCP --> OC
+    MCP --> CC
+    MCP --> CD
+    MCP --> CUR
+    MCP --> AG
+    flake -->|"imported by"| CONS["consumer flake<br/>(e.g. nix-config)<br/>+ sops-nix secrets"]
+
+    classDef m fill:#7eb8da,color:#000
+    classDef c fill:#a8d5a2,color:#000
+    class MCP,OC,CC,CD,CUR,AG,SK m
+    class CONS c
+```
+
 ## Modules
 
 | Module | Option namespace | What it does |
