@@ -170,8 +170,10 @@ let
       })
       // (lib.optionalAttrs (defaultModel != null) {
         default_model = defaultModel;
-      })
-      // (lib.optionalAttrs (providerConfig != { }) providerConfig);
+      });
+  }
+  // lib.optionalAttrs (providerConfig != { }) {
+    providers = providerConfig;
   }
   // lib.optionalAttrs (cfg.extraConfig != { }) cfg.extraConfig;
 
