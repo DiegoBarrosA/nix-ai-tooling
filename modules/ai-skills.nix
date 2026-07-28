@@ -8,13 +8,15 @@
 # All sources are merged (per-skill symlinks) into a single staging directory,
 # which is then wired into each tool:
 #   - OpenCode:    ~/.config/opencode/skills            (symlink to merged dir)
+#   - Jcode:       ~/.jcode/skills                      (symlink to merged dir)
 #   - Codex:       ~/.codex/skills                      (symlink to merged dir)
 #   - Claude Code: ~/.claude/skills                     (symlink to merged dir)
 #   - Cursor:      ~/.cursor/rules/<name>.mdc           (best-effort copy)
 #   - Antigravity: ~/.gemini/AGENTS.md                  (concatenated)
 #
-# Native SKILL.md tools (OpenCode/Codex/Claude) get the real files; Cursor and
-# Antigravity get derived representations because they do not consume SKILL.md.
+# Native SKILL.md tools (OpenCode/Jcode/Codex/Claude) get the real files;
+# Cursor and Antigravity get derived representations because they do not
+# consume SKILL.md.
 {
   config,
   lib,
@@ -59,6 +61,9 @@ in
       opencode = lib.mkEnableOption "wire skills into OpenCode" // {
         default = true;
       };
+      jcode = lib.mkEnableOption "wire skills into Jcode" // {
+        default = true;
+      };
       codex = lib.mkEnableOption "wire skills into Codex" // {
         default = true;
       };
@@ -77,6 +82,12 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "OpenCode profile names whose skills dir should also symlink to the merged dir.";
+    };
+
+    jcodeProfiles = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Jcode profile names whose skills dir should also symlink to the merged dir.";
     };
   };
 
@@ -124,6 +135,12 @@ in
         ${lib.concatMapStringsSep "\n" (p: ''
           link_dir "$HOME/.config/opencode-profiles/${p}/opencode/skills"
         '') cfg.opencodeProfiles}
+        ${lib.optionalString cfg.tools.jcode ''
+          link_dir "$HOME/.jcode/skills"
+        ''}
+        ${lib.concatMapStringsSep "\n" (p: ''
+          link_dir "$HOME/.jcode-profiles/${p}/.jcode/skills"
+        '') cfg.jcodeProfiles}
         ${lib.optionalString cfg.tools.codex ''
           link_dir "$HOME/.codex/skills"
         ''}
