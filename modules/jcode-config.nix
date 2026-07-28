@@ -452,11 +452,11 @@ in
         in
         acc
         // {
-          ".jcode-profiles/${profileName}/.jcode/config.toml" = {
+          ".jcode-profiles/${profileName}/config.toml" = {
             source = tomlFormat.generate "jcode-${profileName}-config.toml" profileToml;
             force = true;
           };
-          ".jcode-profiles/${profileName}/.jcode/mcp.json" = {
+          ".jcode-profiles/${profileName}/mcp.json" = {
             source = jsonFormat.generate "jcode-${profileName}-mcp.json" {
               mcpServers = profileMcp;
             };
@@ -465,7 +465,7 @@ in
         }
         // lib.mapAttrs' (
           skillName: content:
-          lib.nameValuePair ".jcode-profiles/${profileName}/.jcode/skills/${skillName}/SKILL.md" {
+          lib.nameValuePair ".jcode-profiles/${profileName}/skills/${skillName}/SKILL.md" {
             text = content;
           }
         ) cfg.skills
