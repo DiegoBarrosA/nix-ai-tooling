@@ -164,15 +164,14 @@ let
   defaultModel = cfg.provider.defaultModel;
 
   jcodeConfig = {
-    provider = lib.optionalAttrs (defaultProvider != null) {
-      default_provider = defaultProvider;
-    }
-    // lib.optionalAttrs (defaultModel != null) {
-      default_model = defaultModel;
-    };
-  }
-  // lib.optionalAttrs (providerConfig != { }) {
-    providers = providerConfig;
+    provider =
+      (lib.optionalAttrs (defaultProvider != null) {
+        default_provider = defaultProvider;
+      })
+      // (lib.optionalAttrs (defaultModel != null) {
+        default_model = defaultModel;
+      })
+      // (lib.optionalAttrs (providerConfig != { }) providerConfig);
   }
   // lib.optionalAttrs (cfg.extraConfig != { }) cfg.extraConfig;
 
