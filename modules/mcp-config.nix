@@ -146,6 +146,50 @@ in
       };
     };
 
+    # Notes vault filesystem MCP
+    # Exposes ~/Notes (or a custom path) as a read-accessible filesystem MCP server,
+    # giving all AI tools direct read access to the Obsidian vault as their knowledge base.
+    notes = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable the Notes vault filesystem MCP server.
+          Exposes the vault directory to AI tools so they can search and read notes
+          as a personal knowledge base ("brain").
+        '';
+      };
+      vaultPath = lib.mkOption {
+        type = lib.types.str;
+        default = "${config.home.homeDirectory}/Notes";
+        description = "Path to the Notes vault to expose via filesystem MCP.";
+      };
+      command = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [
+          "npx"
+          "-y"
+          "@modelcontextprotocol/server-filesystem"
+        ];
+        description = ''
+          Command to run the filesystem MCP server (without the vault path arg,
+          which is appended automatically). Override to use a nix-packaged binary.
+        '';
+        example = lib.literalExpression ''
+          [ "''${pkgs.mcp-server-filesystem}/bin/mcp-server-filesystem" ]
+        '';
+      };
+      autostart = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether tools that support per-server autostart (OpenCode, JCode) should
+          start this server automatically. Set false to enable on demand and reduce
+          startup latency.
+        '';
+      };
+    };
+
     # Extra MCP servers
     extraMcpServers = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
@@ -207,6 +251,15 @@ in
         // lib.optionalAttrs cfg.thunderbird.enable {
           thunderbird = {
             command = "${cfg.thunderbird.package}/bin/thunderbird-mcp";
+          };
+        }
+        // lib.optionalAttrs cfg.notes.enable {
+          notes = {
+            # programs.mcp.servers expects command = string, args = list
+            command = builtins.head cfg.notes.command;
+            args = (builtins.tail cfg.notes.command) ++ [ cfg.notes.vaultPath ];
+          } // lib.optionalAttrs (!cfg.notes.autostart) {
+            enabled = false;
           };
         }
         // cfg.extraMcpServers

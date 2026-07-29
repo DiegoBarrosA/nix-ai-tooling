@@ -13,6 +13,7 @@
       cursor-config = import ./modules/cursor-config.nix;
       antigravity-config = import ./modules/antigravity-config.nix;
       ai-skills = import ./modules/ai-skills.nix;
+      ai-system-prompt = import ./modules/ai-system-prompt.nix;
       default = { ... }: {
         imports = [
           mcp-config
@@ -23,6 +24,7 @@
           cursor-config
           antigravity-config
           ai-skills
+          ai-system-prompt
         ];
       };
     };
