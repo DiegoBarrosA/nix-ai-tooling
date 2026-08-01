@@ -79,13 +79,26 @@ in
     };
 
     # Activation script to merge MCP servers and commands into ~/.claude.json
+    # mcpServers is REPLACED (not merged) with the declared set, so servers
+    # removed from the Nix config are pruned here (including their envs).
+    # A running Claude Code can rewrite the file from its own state afterwards;
+    # restart it after switching for the cleanup to stick.
     home.activation.claudeCodeMcpConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       CLAUDE_CONFIG="$HOME/.claude.json"
       MCP_SERVERS_FILE="${mcpServersJson}"
       COMMANDS_FILE="${commandsJson}"
 
       if [ -f "$CLAUDE_CONFIG" ]; then
-        # Merge MCP servers into existing config
+        # Report MCP servers present in the file but no longer declared
+        REMOVED=$(${pkgs.jq}/bin/jq -r --slurpfile declared "$MCP_SERVERS_FILE" '
+          (.mcpServers // {}) | keys[] as $k
+          | select(($declared[0] | has($k)) | not)
+          | $k
+        ' "$CLAUDE_CONFIG")
+        if [ -n "$REMOVED" ]; then
+          run echo "Claude Code: pruning undeclared MCP servers: $(echo "$REMOVED" | tr '\n' ' ')"
+        fi
+        # Replace MCP servers wholesale (prunes stale/undeclared servers + envs)
         ${pkgs.jq}/bin/jq -s '.[0] * {mcpServers: .[1]}' "$CLAUDE_CONFIG" "$MCP_SERVERS_FILE" > "$CLAUDE_CONFIG.tmp"
         mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
         # Merge commands into existing config
