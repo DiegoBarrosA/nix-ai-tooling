@@ -190,6 +190,40 @@ in
       };
     };
 
+    # Supermercados CL MCP (Chilean supermarket price search/comparison)
+    # https://github.com/NLACE-COM/mcp-supermercados-cl
+    # No nix package published upstream; runs via npx like the notes server.
+    supermercados = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable the Supermercados CL MCP server: search products, compare
+          prices, and build shopping lists across Chilean supermarket chains
+          (Jumbo, Santa Isabel, Unimarc, Tottus, Lider). Runs locally over
+          stdio; no server-side credentials required.
+        '';
+      };
+      command = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [
+          "npx"
+          "-y"
+          "mcp-supermercados-cl"
+        ];
+        description = "Command to run the Supermercados CL MCP server.";
+      };
+      autostart = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether tools that support per-server autostart (OpenCode, JCode) should
+          start this server automatically. Set false to enable on demand and reduce
+          startup latency.
+        '';
+      };
+    };
+
     # Extra MCP servers
     extraMcpServers = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
@@ -259,6 +293,14 @@ in
             command = builtins.head cfg.notes.command;
             args = (builtins.tail cfg.notes.command) ++ [ cfg.notes.vaultPath ];
           } // lib.optionalAttrs (!cfg.notes.autostart) {
+            enabled = false;
+          };
+        }
+        // lib.optionalAttrs cfg.supermercados.enable {
+          supermercados = {
+            command = builtins.head cfg.supermercados.command;
+            args = builtins.tail cfg.supermercados.command;
+          } // lib.optionalAttrs (!cfg.supermercados.autostart) {
             enabled = false;
           };
         }
