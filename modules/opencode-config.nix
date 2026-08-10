@@ -18,7 +18,6 @@ let
   # Any programs.mcp.servers entry NOT in this set is auto-included below.
   explicitServerNames = lib.concatLists [
     (lib.optional mcpCfg.mcpNixos.enable "nixos")
-    (lib.optional mcpCfg.mcpTelegram.enable "telegram")
     (lib.optional mcpCfg.jobspy.enable "jobspy")
     (lib.optional mcpCfg.github.enable "github")
     (lib.optional mcpCfg.playwright.enable "playwright")
@@ -67,16 +66,6 @@ let
         type = "local";
         command = [
           "${pkgs.mcp-nixos}/bin/mcp-nixos"
-        ];
-        enabled = true;
-      };
-    }
-    // lib.optionalAttrs mcpCfg.mcpTelegram.enable {
-      telegram = {
-        type = "local";
-        command = [
-          "uvx"
-          "simple-telegram-mcp"
         ];
         enabled = true;
       };
