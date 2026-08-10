@@ -1,5 +1,5 @@
-# Centralized AI skills sourced from the Obsidian vault plus optional extra
-# skill repos (e.g. kepano/obsidian-skills).
+# Centralized AI skills sourced from the Notes vault plus optional extra
+# skill repos.
 #
 # Sources:
 #   - vaultSkillsDir:   <vaultSkillsDir>/<skill-name>/SKILL.md   (single source of truth)
@@ -29,7 +29,7 @@ let
 in
 {
   options.programs.ai-skills = {
-    enable = lib.mkEnableOption "Centralized AI skills sourced from the Obsidian vault";
+    enable = lib.mkEnableOption "Centralized AI skills sourced from the Notes vault";
 
     vaultSkillsDir = lib.mkOption {
       type = lib.types.str;
@@ -40,7 +40,7 @@ in
     extraSkillSources = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      example = lib.literalExpression ''[ "''${inputs.obsidian-skills}/skills" ]'';
+      example = lib.literalExpression ''[ "''${inputs.extra-skills}/skills" ]'';
       description = ''
         Additional skill source directories. Each must contain
         <skill-name>/SKILL.md entries. Merged alongside vaultSkillsDir.

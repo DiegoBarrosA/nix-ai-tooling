@@ -98,11 +98,15 @@ in
         if [ -n "$REMOVED" ]; then
           run echo "Claude Code: pruning undeclared MCP servers: $(echo "$REMOVED" | tr '\n' ' ')"
         fi
-        # Replace MCP servers wholesale (prunes stale/undeclared servers + envs)
-        ${pkgs.jq}/bin/jq -s '.[0] * {mcpServers: .[1]}' "$CLAUDE_CONFIG" "$MCP_SERVERS_FILE" > "$CLAUDE_CONFIG.tmp"
+        # Replace MCP servers wholesale (prunes stale/undeclared servers + envs).
+        # NB: use `+` not `*` — jq's `*` recursively merges the two mcpServers
+        # objects, keeping servers removed from the Nix config forever. `+`
+        # replaces the whole key.
+        ${pkgs.jq}/bin/jq -s '.[0] + {mcpServers: .[1]}' "$CLAUDE_CONFIG" "$MCP_SERVERS_FILE" > "$CLAUDE_CONFIG.tmp"
         mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
-        # Merge commands into existing config
-        ${pkgs.jq}/bin/jq -s '.[0] * {commands: .[1]}' "$CLAUDE_CONFIG" "$COMMANDS_FILE" > "$CLAUDE_CONFIG.tmp"
+        # Merge commands into existing config, preserving entries present only
+        # in the existing config while letting declared ones override matching keys
+        ${pkgs.jq}/bin/jq -s '.[0] + {commands: ((.[0].commands // {}) + .[1])}' "$CLAUDE_CONFIG" "$COMMANDS_FILE" > "$CLAUDE_CONFIG.tmp"
         mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
         run echo "Claude Code: Updated MCP servers and commands in $CLAUDE_CONFIG"
       else

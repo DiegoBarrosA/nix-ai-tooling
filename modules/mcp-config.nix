@@ -51,15 +51,6 @@ in
       };
     };
 
-    # Telegram MCP
-    mcpTelegram = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Enable simple-telegram-mcp server.";
-      };
-    };
-
     # JobSpy MCP (job search via LinkedIn, Indeed, Google Jobs)
     jobspy = {
       enable = lib.mkOption {
@@ -146,38 +137,21 @@ in
       };
     };
 
-    # Notes vault filesystem MCP
-    # Exposes ~/Notes (or a custom path) as a read-accessible filesystem MCP server,
-    # giving all AI tools direct read access to the Obsidian vault as their knowledge base.
-    notes = {
+    # ZenNotes MCP — native vault MCP via the `zn mcp` CLI
+    # Exposes ~/Notes (or any ZenNotes vault) to AI tools as a knowledge base.
+    zennotes = {
       enable = lib.mkOption {
         type = lib.types.bool;
         default = false;
         description = ''
-          Enable the Notes vault filesystem MCP server.
-          Exposes the vault directory to AI tools so they can search and read notes
-          as a personal knowledge base ("brain").
+          Enable the ZenNotes MCP server (zn mcp).
+          Gives all AI tools structured read/write access to the Notes vault.
         '';
       };
-      vaultPath = lib.mkOption {
+      cliPath = lib.mkOption {
         type = lib.types.str;
-        default = "${config.home.homeDirectory}/Notes";
-        description = "Path to the Notes vault to expose via filesystem MCP.";
-      };
-      command = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
-        default = [
-          "npx"
-          "-y"
-          "@modelcontextprotocol/server-filesystem"
-        ];
-        description = ''
-          Command to run the filesystem MCP server (without the vault path arg,
-          which is appended automatically). Override to use a nix-packaged binary.
-        '';
-        example = lib.literalExpression ''
-          [ "''${pkgs.mcp-server-filesystem}/bin/mcp-server-filesystem" ]
-        '';
+        default = "${config.home.homeDirectory}/.config/ZenNotes/cli/zen";
+        description = "Path to the ZenNotes CLI binary (zn).";
       };
       autostart = lib.mkOption {
         type = lib.types.bool;
@@ -252,12 +226,6 @@ in
             command = "${pkgs.mcp-nixos}/bin/mcp-nixos";
           };
         }
-        // lib.optionalAttrs cfg.mcpTelegram.enable {
-          telegram = {
-            command = "uvx";
-            args = [ "simple-telegram-mcp" ];
-          };
-        }
         // lib.optionalAttrs cfg.jobspy.enable {
           jobspy = {
             command = "${cfg.jobspy.package}/bin/jobspy-mcp";
@@ -287,12 +255,11 @@ in
             command = "${cfg.thunderbird.package}/bin/thunderbird-mcp";
           };
         }
-        // lib.optionalAttrs cfg.notes.enable {
+        // lib.optionalAttrs cfg.zennotes.enable {
           notes = {
-            # programs.mcp.servers expects command = string, args = list
-            command = builtins.head cfg.notes.command;
-            args = (builtins.tail cfg.notes.command) ++ [ cfg.notes.vaultPath ];
-          } // lib.optionalAttrs (!cfg.notes.autostart) {
+            command = cfg.zennotes.cliPath;
+            args = [ "mcp" ];
+          } // lib.optionalAttrs (!cfg.zennotes.autostart) {
             enabled = false;
           };
         }

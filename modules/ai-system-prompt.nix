@@ -1,4 +1,4 @@
-# Centralized system prompt sourced from the Obsidian vault.
+# Centralized system prompt sourced from the Notes vault.
 #
 # Sources:
 #   - vaultPromptsDir/System/*.md  (sorted, concatenated — single source of truth)

@@ -10,7 +10,7 @@
 # Usage:
 #   programs.claude-desktop-config = {
 #     enable = true;
-#     excludeServers = ["netsuite-goals"];  # omit servers that shouldn't auto-start
+#     excludeServers = ["netsuite"];  # omit servers that shouldn't auto-start
 #     extraMcpServers = {
 #       jira = {
 #         command = "${customPkgs.jira-cloud-mcp}/bin/jira-cloud-mcp";
@@ -133,8 +133,11 @@ in
 
       # Merge into the existing Claude Desktop config, replacing mcpServers
       # entirely but preserving all other keys (preferences, coworkUserFilesPath, …).
+      # NB: use `+` not `*` — jq's `*` recursively merges the two mcpServers
+      # objects, keeping servers removed from the Nix config forever. `+`
+      # replaces the whole key.
       if [ -f "$CLAUDE_CONFIG" ]; then
-        ${pkgs.jq}/bin/jq -s '.[0] * {mcpServers: .[1].mcpServers}' \
+        ${pkgs.jq}/bin/jq -s '.[0] + {mcpServers: .[1].mcpServers}' \
           "$CLAUDE_CONFIG" <(printf '%s' "$RESOLVED") \
           > "$CLAUDE_CONFIG.tmp" && mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
       else

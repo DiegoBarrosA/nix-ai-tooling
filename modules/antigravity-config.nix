@@ -64,8 +64,11 @@ in
       MCP_SERVERS_FILE="${mcpServersJson}"
       ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$AG_CONFIG")"
       if [ -s "$AG_CONFIG" ] && ${pkgs.jq}/bin/jq -e . "$AG_CONFIG" >/dev/null 2>&1; then
-        # Existing valid config: merge/overwrite the mcpServers key, preserve other keys.
-        ${pkgs.jq}/bin/jq -s '.[0] * {mcpServers: .[1]}' "$AG_CONFIG" "$MCP_SERVERS_FILE" > "$AG_CONFIG.tmp" \
+        # Existing valid config: replace the mcpServers key, preserve other keys.
+        # NB: use `+` not `*` — jq's `*` recursively merges the two mcpServers
+        # objects, keeping servers removed from the Nix config forever. `+`
+        # replaces the whole key.
+        ${pkgs.jq}/bin/jq -s '.[0] + {mcpServers: .[1]}' "$AG_CONFIG" "$MCP_SERVERS_FILE" > "$AG_CONFIG.tmp" \
           && ${pkgs.coreutils}/bin/mv "$AG_CONFIG.tmp" "$AG_CONFIG"
       else
         # Empty or invalid file: write a fresh config.
