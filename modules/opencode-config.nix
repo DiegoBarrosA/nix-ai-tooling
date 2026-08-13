@@ -94,6 +94,8 @@ let
           "${mcpCfg.playwright.package}/bin/playwright-mcp"
         ]
         ++ lib.optionals (mcpCfg.playwright.browserPath != null) [
+          "--browser"
+          "firefox"
           "--executable-path"
           mcpCfg.playwright.browserPath
         ];

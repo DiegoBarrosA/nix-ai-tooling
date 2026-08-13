@@ -244,7 +244,13 @@ in
             command = "${cfg.playwright.package}/bin/playwright-mcp";
           }
           // lib.optionalAttrs (cfg.playwright.browserPath != null) {
+            # ponytail: --browser hardcoded to firefox, matches the only
+            # browserPath in use (firefox-devedition). Without it playwright-mcp
+            # defaults to chromium and fails to launch against this executable.
+            # Add a browserType option if a non-firefox browserPath shows up.
             args = [
+              "--browser"
+              "firefox"
               "--executable-path"
               cfg.playwright.browserPath
             ];
