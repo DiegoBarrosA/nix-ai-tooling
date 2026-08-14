@@ -111,6 +111,18 @@ in
           "${pkgs.firefox-devedition}/bin/firefox"
         '';
       };
+      userDataDir = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Persistent profile directory for Playwright's browser. If null, Playwright
+          launches against a fresh temp profile every run (no logins, no extensions,
+          no history). Point this at a dedicated profile directory, not a profile a
+          real browser instance has open, since browser profiles hold a single-writer
+          lock and Playwright will fail to launch (or fight for the lock) if the same
+          profile is open elsewhere.
+        '';
+      };
     };
 
     # Thunderbird MCP (email integration)
@@ -249,11 +261,15 @@ in
             # defaults to chromium and fails to launch against this executable.
             # Add a browserType option if a non-firefox browserPath shows up.
             args = [
-              "--browser"
-              "firefox"
-              "--executable-path"
-              cfg.playwright.browserPath
-            ];
+                "--browser"
+                "firefox"
+                "--executable-path"
+                cfg.playwright.browserPath
+              ]
+              ++ lib.optionals (cfg.playwright.userDataDir != null) [
+                "--user-data-dir"
+                cfg.playwright.userDataDir
+              ];
           };
         }
         // lib.optionalAttrs cfg.thunderbird.enable {
