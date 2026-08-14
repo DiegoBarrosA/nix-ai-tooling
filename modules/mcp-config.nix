@@ -261,15 +261,21 @@ in
             # defaults to chromium and fails to launch against this executable.
             # Add a browserType option if a non-firefox browserPath shows up.
             args = [
-                "--browser"
-                "firefox"
-                "--executable-path"
-                cfg.playwright.browserPath
-              ]
-              ++ lib.optionals (cfg.playwright.userDataDir != null) [
-                "--user-data-dir"
-                cfg.playwright.userDataDir
-              ];
+              "--browser"
+              "firefox"
+              "--executable-path"
+              cfg.playwright.browserPath
+            ];
+          }
+          // lib.optionalAttrs (cfg.playwright.userDataDir != null) {
+            # ponytail: must be an env var, not --user-data-dir. The nixpkgs
+            # wrapper only checks $PLAYWRIGHT_MCP_USER_DATA_DIR to decide
+            # whether to force PLAYWRIGHT_MCP_ISOLATED=1; passing the path via
+            # CLI arg alone still triggers isolated mode and playwright-mcp
+            # refuses to start ("userDataDir is not supported in isolated mode").
+            env = {
+              PLAYWRIGHT_MCP_USER_DATA_DIR = cfg.playwright.userDataDir;
+            };
           };
         }
         // lib.optionalAttrs cfg.thunderbird.enable {
