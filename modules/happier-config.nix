@@ -19,6 +19,13 @@ let
       '') cfg.secretEnv
     )}
 
+    # Point the Claude Agent SDK at the Nix-managed Claude Code binary.
+    # Systemd user services don't reliably carry ~/.nix-profile/bin on PATH,
+    # which makes happier's remote claude dispatch fail to detect it.
+    ${lib.optionalString cfg.providers.claude.enable ''
+      export HAPPIER_CLAUDE_PATH="${pkgs.claude-code}/bin/claude"
+    ''}
+
     # Start the daemon in the foreground (systemd manages it)
     exec ${cfg.package}/bin/happier daemon start-sync
   '';
