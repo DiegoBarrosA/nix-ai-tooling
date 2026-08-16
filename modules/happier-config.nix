@@ -179,6 +179,14 @@ in
       (lib.mkIf cfg.providers.claude.enable {
         # Ensure Claude Code is available (claude-code-config only writes config)
         home.packages = lib.optional config.programs.claude-code-config.enable pkgs.claude-code;
+
+        # Point the Claude Agent SDK at the Nix-managed Claude Code binary for
+        # interactive `happier`/`happier claude` invocations too. On Nix the
+        # `claude` binary is a compiled wrapper with no cli.js entrypoint, so
+        # happier's built-in SDK auto-detection fails with "Claude Code is not
+        # installed (or not detectable)". The daemon start script already sets
+        # this for daemon-spawned sessions; this covers foreground CLI runs.
+        home.sessionVariables.HAPPIER_CLAUDE_PATH = "${pkgs.claude-code}/bin/claude";
       })
 
       # OpenCode is NOT added here: opencode-config installs the wrapped
