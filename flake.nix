@@ -14,6 +14,7 @@
       antigravity-config = import ./modules/antigravity-config.nix;
       ai-skills = import ./modules/ai-skills.nix;
       ai-system-prompt = import ./modules/ai-system-prompt.nix;
+      happier-config = import ./modules/happier-config.nix;
       default = { ... }: {
         imports = [
           mcp-config
@@ -25,6 +26,7 @@
           antigravity-config
           ai-skills
           ai-system-prompt
+          happier-config
         ];
       };
     };

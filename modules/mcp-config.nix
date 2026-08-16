@@ -108,7 +108,7 @@ in
         default = null;
         description = "Custom browser executable path for Playwright. If null, uses Playwright's default browser.";
         example = lib.literalExpression ''
-          "${pkgs.firefox-devedition}/bin/firefox"
+          "${pkgs.firefox}/bin/firefox"
         '';
       };
       userDataDir = lib.mkOption {
@@ -257,9 +257,8 @@ in
           }
           // lib.optionalAttrs (cfg.playwright.browserPath != null) {
             # ponytail: --browser hardcoded to firefox, matches the only
-            # browserPath in use (firefox-devedition). Without it playwright-mcp
-            # defaults to chromium and fails to launch against this executable.
-            # Add a browserType option if a non-firefox browserPath shows up.
+            # browserPath in use. Without it playwright-mcp defaults to
+            # chromium and fails to launch against this executable.
             args = [
               "--browser"
               "firefox"

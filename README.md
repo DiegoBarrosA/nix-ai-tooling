@@ -19,17 +19,20 @@ graph LR
         CUR["cursor-config"]
         AG["antigravity-config"]
         SK["ai-skills"]
+        HP["happier-config<br/>(cross-device companion)"]
     end
     MCP --> OC
     MCP --> CC
     MCP --> CD
     MCP --> CUR
     MCP --> AG
+    OC --> HP
+    CC --> HP
     flake -->|"imported by"| CONS["consumer flake<br/>(e.g. nix-config)<br/>+ sops-nix secrets"]
 
     classDef m fill:#7eb8da,color:#000
     classDef c fill:#a8d5a2,color:#000
-    class MCP,OC,CC,CD,CUR,AG,SK m
+    class MCP,OC,CC,CD,CUR,AG,SK,HP m
     class CONS c
 ```
 
@@ -43,6 +46,7 @@ graph LR
 | `cursor-config` | `programs.cursor-config.*` | Generates Cursor editor AI config. |
 | `antigravity-config` | `programs.antigravity-config.*` | Generates Antigravity config. |
 | `ai-skills` | `programs.ai-skills.*` | Cross-agent skills: deploys a shared skill set into each agent's skills directory (incl. per-opencode-profile fan-out). |
+| `happier-config` | `programs.happier-config.*` | Happier cross-device companion: installs CLI, configures daemon for remote session control, integrates with Claude Code/OpenCode/Jcode providers. |
 
 ## Usage
 
@@ -66,6 +70,17 @@ graph LR
             enable = true;
             opencodeGo.enable = true;
             secretEnv.OPENCODE_API_KEY = "/run/secrets/opencode-api-key";
+          };
+
+          # Enable Happier for cross-device AI tool access
+          programs.happier-config = {
+            enable = true;
+            daemon.enable = true;
+            providers = {
+              claude.enable = true;
+              opencode.enable = true;
+            };
+            secretEnv.GITHUB_TOKEN = "/run/secrets/github-token";
           };
         }
       ];
