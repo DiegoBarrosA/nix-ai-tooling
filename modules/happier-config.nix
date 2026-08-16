@@ -170,14 +170,13 @@ in
 
       # Configure providers
       (lib.mkIf cfg.providers.claude.enable {
-        # Ensure Claude Code is available
+        # Ensure Claude Code is available (claude-code-config only writes config)
         home.packages = lib.optional config.programs.claude-code-config.enable pkgs.claude-code;
       })
 
-      (lib.mkIf cfg.providers.opencode.enable {
-        # Ensure OpenCode is available
-        home.packages = lib.optional config.programs.opencode-config.enable pkgs.opencode;
-      })
+      # OpenCode is NOT added here: opencode-config installs the wrapped
+      # opencode-with-secrets binary, and adding plain pkgs.opencode to the same
+      # home.packages would make buildEnv fail on the conflicting bin/opencode.
     ]
   );
 }
