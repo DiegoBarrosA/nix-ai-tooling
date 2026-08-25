@@ -26,6 +26,14 @@ let
       export HAPPIER_CLAUDE_PATH="${pkgs.claude-code}/bin/claude"
     ''}
 
+    # Same PATH problem as Claude above: the daemon spawns `codex` for
+    # remote/phone sessions, and without ~/.nix-profile/bin on PATH it
+    # can't find it, which surfaces client-side as an endless
+    # "Reconnecting..." loop instead of a clear error.
+    ${lib.optionalString cfg.providers.codex.enable ''
+      export HAPPIER_CODEX_TUI_BIN="${pkgs.codex}/bin/codex"
+    ''}
+
     # Start the daemon in the foreground (systemd manages it)
     exec ${cfg.package}/bin/happier daemon start-sync
   '';
@@ -160,13 +168,21 @@ in
           Install.WantedBy = [ "default.target" ];
         };
 
-        # Create shell aliases for common Happier commands
-        home.shellAliases = {
-          h = "happier";
-          hs = "happier session";
-          hsl = "happier session list";
-          hsc = "happier session create";
-        };
+        # Create shell aliases for common Happier commands.
+        # AI tool aliases route through Happier by default so sessions are
+        # captured by the daemon and accessible from phone/web/desktop.
+        home.shellAliases =
+          {
+            h = "happier";
+            hs = "happier session";
+            hsl = "happier session list";
+            hsc = "happier session create";
+          }
+          // lib.optionalAttrs cfg.providers.claude.enable { claude = "happier claude"; }
+          // lib.optionalAttrs cfg.providers.opencode.enable { opencode = "happier opencode"; }
+          // lib.optionalAttrs cfg.providers.jcode.enable { jcode = "happier jcode"; }
+          // lib.optionalAttrs cfg.providers.codex.enable { codex = "happier codex"; }
+          // lib.optionalAttrs cfg.providers.gemini.enable { gemini = "happier gemini"; };
       }
 
       # Configure server if URL is provided
@@ -187,6 +203,11 @@ in
         # installed (or not detectable)". The daemon start script already sets
         # this for daemon-spawned sessions; this covers foreground CLI runs.
         home.sessionVariables.HAPPIER_CLAUDE_PATH = "${pkgs.claude-code}/bin/claude";
+      })
+
+      # Codex: same PATH fix as Claude above, for foreground CLI runs.
+      (lib.mkIf cfg.providers.codex.enable {
+        home.sessionVariables.HAPPIER_CODEX_TUI_BIN = "${pkgs.codex}/bin/codex";
       })
 
       # OpenCode is NOT added here: opencode-config installs the wrapped
