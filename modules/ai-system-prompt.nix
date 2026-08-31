@@ -9,11 +9,20 @@
 # Per-tool deployment:
 #   - Claude Code:   ~/.claude/CLAUDE.md               (overwrite on activation)
 #   - Cursor:        ~/.cursor/rules/00-system-prompt.mdc
+#   - OpenCode:      ~/.config/opencode/AGENTS.md       (overwrite on activation)
+#   - Jcode:         ~/.jcode/AGENTS.md                 (overwrite on activation)
+#   - Codex:         ~/.codex/AGENTS.md                 (overwrite on activation)
 #   - Antigravity:   ~/.gemini/AGENTS.md               (prepended before skills,
 #                    runs after aiSkills activation so skills are already there)
 #
+# OpenCode/Jcode/Codex don't get an AGENTS.md from ai-skills.nix (that module
+# only concatenates skills into AGENTS.md for Antigravity; the other three
+# consume native SKILL.md directories), so a plain overwrite here is safe —
+# no activation-ordering conflict like Antigravity's.
+#
 # Live reload without rebuild:
-#   sync-ai-system-prompt  — re-reads vault and redeploys to Claude + Cursor.
+#   sync-ai-system-prompt  — re-reads vault and redeploys to Claude, Cursor,
+#   OpenCode, Jcode, and Codex.
 #   Note: Antigravity AGENTS.md requires a full activation (skills + prompt are
 #   merged in a single pass at switch time) — run `home-manager switch` for that.
 {
@@ -63,6 +72,18 @@ let
           printf -- '---\ndescription: Global system prompt from Notes vault\nalwaysApply: true\n---\n\n'
           ${coreutils}/bin/cat "${stagingFile}"
         } > "$HOME/.cursor/rules/00-system-prompt.mdc"
+      ''}
+      ${lib.optionalString cfg.tools.opencode ''
+        ${coreutils}/bin/mkdir -p "$HOME/.config/opencode"
+        ${coreutils}/bin/cp "${stagingFile}" "$HOME/.config/opencode/AGENTS.md"
+      ''}
+      ${lib.optionalString cfg.tools.jcode ''
+        ${coreutils}/bin/mkdir -p "$HOME/.jcode"
+        ${coreutils}/bin/cp "${stagingFile}" "$HOME/.jcode/AGENTS.md"
+      ''}
+      ${lib.optionalString cfg.tools.codex ''
+        ${coreutils}/bin/mkdir -p "$HOME/.codex"
+        ${coreutils}/bin/cp "${stagingFile}" "$HOME/.codex/AGENTS.md"
       ''}
     fi
   '';
@@ -119,6 +140,15 @@ in
       antigravity = lib.mkEnableOption "prepend system prompt to Antigravity AGENTS.md" // {
         default = true;
       };
+      opencode = lib.mkEnableOption "deploy system prompt to OpenCode (~/.config/opencode/AGENTS.md)" // {
+        default = true;
+      };
+      jcode = lib.mkEnableOption "deploy system prompt to Jcode (~/.jcode/AGENTS.md)" // {
+        default = true;
+      };
+      codex = lib.mkEnableOption "deploy system prompt to Codex (~/.codex/AGENTS.md)" // {
+        default = true;
+      };
     };
   };
 
@@ -165,6 +195,21 @@ in
             ${coreutils}/bin/cat "${stagingFile}"
           } > "$HOME/.cursor/rules/00-system-prompt.mdc"
           echo "  -> ~/.cursor/rules/00-system-prompt.mdc"
+        ''}
+        ${lib.optionalString cfg.tools.opencode ''
+          mkdir -p "$HOME/.config/opencode"
+          ${coreutils}/bin/cp "${stagingFile}" "$HOME/.config/opencode/AGENTS.md"
+          echo "  -> ~/.config/opencode/AGENTS.md"
+        ''}
+        ${lib.optionalString cfg.tools.jcode ''
+          mkdir -p "$HOME/.jcode"
+          ${coreutils}/bin/cp "${stagingFile}" "$HOME/.jcode/AGENTS.md"
+          echo "  -> ~/.jcode/AGENTS.md"
+        ''}
+        ${lib.optionalString cfg.tools.codex ''
+          mkdir -p "$HOME/.codex"
+          ${coreutils}/bin/cp "${stagingFile}" "$HOME/.codex/AGENTS.md"
+          echo "  -> ~/.codex/AGENTS.md"
         ''}
 
         echo ""
