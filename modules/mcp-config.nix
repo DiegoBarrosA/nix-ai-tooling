@@ -103,6 +103,21 @@ in
         defaultText = lib.literalExpression "pkgs.playwright-mcp";
         description = "The Playwright MCP package to use.";
       };
+      browser = lib.mkOption {
+        type = lib.types.enum [
+          "chromium"
+          "firefox"
+          "webkit"
+        ];
+        default = "chromium";
+        description = ''
+          Browser engine to drive. Chromium is recommended when pointing
+          browserPath at a system browser: Playwright talks to it over the
+          standard Chrome DevTools Protocol, which stock Chrome/Chromium
+          builds support. Firefox and webkit only work reliably with
+          Playwright's own patched browser builds, not stock system builds.
+        '';
+      };
       browserPath = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
@@ -256,12 +271,9 @@ in
             command = "${cfg.playwright.package}/bin/playwright-mcp";
           }
           // lib.optionalAttrs (cfg.playwright.browserPath != null) {
-            # ponytail: --browser hardcoded to firefox, matches the only
-            # browserPath in use. Without it playwright-mcp defaults to
-            # chromium and fails to launch against this executable.
             args = [
               "--browser"
-              "firefox"
+              cfg.playwright.browser
               "--executable-path"
               cfg.playwright.browserPath
             ];
