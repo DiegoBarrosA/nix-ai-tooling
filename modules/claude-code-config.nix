@@ -24,6 +24,10 @@ let
 
   # Generate commands JSON for custom slash commands
   commandsJson = jsonFormat.generate "claude-code-commands.json" cfg.commands;
+
+  # Generate plugin/marketplace JSON for ~/.claude/settings.json
+  enabledPluginsJson = jsonFormat.generate "claude-code-enabled-plugins.json" cfg.enabledPlugins;
+  marketplacesJson = jsonFormat.generate "claude-code-marketplaces.json" cfg.extraKnownMarketplaces;
 in
 {
   options.programs.claude-code-config = {
@@ -70,6 +74,41 @@ in
         }
       '';
     };
+
+    enabledPlugins = lib.mkOption {
+      type = lib.types.attrsOf lib.types.bool;
+      default = { };
+      description = ''
+        Claude Code plugins to enable, keyed by "<plugin>@<marketplace>"
+        (matches the `enabledPlugins` shape in ~/.claude/settings.json).
+      '';
+      example = lib.literalExpression ''
+        { "superpowers@claude-plugins-official" = true; }
+      '';
+    };
+
+    extraKnownMarketplaces = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      default = { };
+      description = "Extra plugin marketplaces to register (extraKnownMarketplaces in settings.json).";
+      example = lib.literalExpression ''
+        {
+          ponytail = {
+            source = {
+              source = "github";
+              repo = "DietrichGebert/ponytail";
+            };
+          };
+        }
+      '';
+    };
+
+    extraAgentSources = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Directories of extra *.md subagent files to symlink into ~/.claude/agents.";
+      example = lib.literalExpression ''[ "''${inputs.impeccable}/.claude/agents" ]'';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -114,6 +153,41 @@ in
         ${pkgs.jq}/bin/jq -s '{mcpServers: .[0], commands: .[1]}' "$MCP_SERVERS_FILE" "$COMMANDS_FILE" > "$CLAUDE_CONFIG"
         run echo "Claude Code: Created $CLAUDE_CONFIG with MCP servers and commands"
       fi
+    '';
+
+    # Activation script to merge enabledPlugins/extraKnownMarketplaces into
+    # ~/.claude/settings.json. Both keys are REPLACED wholesale (declared set
+    # wins), same pruning semantics as the MCP servers merge above.
+    home.activation.claudeCodePlugins = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      SETTINGS="$HOME/.claude/settings.json"
+      PLUGINS_FILE="${enabledPluginsJson}"
+      MARKETPLACES_FILE="${marketplacesJson}"
+
+      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$SETTINGS")"
+      if [ -f "$SETTINGS" ]; then
+        ${pkgs.jq}/bin/jq -s '.[0] + {enabledPlugins: .[1], extraKnownMarketplaces: .[2]}' \
+          "$SETTINGS" "$PLUGINS_FILE" "$MARKETPLACES_FILE" > "$SETTINGS.tmp"
+        mv "$SETTINGS.tmp" "$SETTINGS"
+      else
+        ${pkgs.jq}/bin/jq -n --slurpfile p "$PLUGINS_FILE" --slurpfile m "$MARKETPLACES_FILE" \
+          '{enabledPlugins: $p[0], extraKnownMarketplaces: $m[0]}' > "$SETTINGS"
+      fi
+      run echo "Claude Code: Updated plugins in $SETTINGS"
+    '';
+
+    # Activation script to symlink extra *.md subagents (e.g. from vendored
+    # skill repos) into ~/.claude/agents, without disturbing other agents.
+    home.activation.claudeCodeAgents = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      AGENTS_DIR="$HOME/.claude/agents"
+      ${pkgs.coreutils}/bin/mkdir -p "$AGENTS_DIR"
+      ${lib.concatMapStringsSep "\n" (src: ''
+        if [ -d "${src}" ]; then
+          for f in "${src}"/*.md; do
+            [ -e "$f" ] || continue
+            ${pkgs.coreutils}/bin/ln -sfn "$f" "$AGENTS_DIR/$(${pkgs.coreutils}/bin/basename "$f")"
+          done
+        fi
+      '') cfg.extraAgentSources}
     '';
   };
 }
