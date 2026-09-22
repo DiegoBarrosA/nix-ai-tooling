@@ -148,8 +148,12 @@ in
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {
-        # Install Happier package
-        home.packages = [ cfg.package ];
+        # Install Happier package, and Claude Code itself (claude-code-config
+        # only writes config, it doesn't install the binary).
+        home.packages = [
+          cfg.package
+        ]
+        ++ lib.optional config.programs.claude-code-config.enable pkgs.claude-code;
 
         # Create systemd user service for the daemon
         systemd.user.services.happier-daemon = lib.mkIf cfg.daemon.enable {
@@ -193,9 +197,6 @@ in
 
       # Configure providers
       (lib.mkIf cfg.providers.claude.enable {
-        # Ensure Claude Code is available (claude-code-config only writes config)
-        home.packages = lib.optional config.programs.claude-code-config.enable pkgs.claude-code;
-
         # Point the Claude Agent SDK at the Nix-managed Claude Code binary for
         # interactive `happier`/`happier claude` invocations too. On Nix the
         # `claude` binary is a compiled wrapper with no cli.js entrypoint, so
