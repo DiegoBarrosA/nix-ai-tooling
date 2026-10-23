@@ -5,6 +5,10 @@
 # Note: ~/.claude.json is not fully managed by Nix because Claude Code
 # stores runtime state there. This module uses an activation script to
 # merge MCP servers into the existing file.
+#
+# Extra profiles (programs.claude-code-config.profiles.<name>) each get a
+# config dir under XDG_CONFIG_HOME and a `claude-<name>` launcher that sets
+# CLAUDE_CONFIG_DIR; Claude Code then keeps .claude.json inside that dir.
 {
   config,
   lib,
@@ -12,6 +16,7 @@
   ...
 }:
 let
+  hmConfig = config;
   cfg = config.programs.claude-code-config;
   mcpCfg = config.programs.mcp-config;
   jsonFormat = pkgs.formats.json { };
@@ -25,9 +30,79 @@ let
   # Generate commands JSON for custom slash commands
   commandsJson = jsonFormat.generate "claude-code-commands.json" cfg.commands;
 
-  # Generate plugin/marketplace JSON for ~/.claude/settings.json
+  # Generate plugin/marketplace JSON for settings.json
   enabledPluginsJson = jsonFormat.generate "claude-code-enabled-plugins.json" cfg.enabledPlugins;
   marketplacesJson = jsonFormat.generate "claude-code-marketplaces.json" cfg.extraKnownMarketplaces;
+
+  # Shell for one profile. claudeJson/dir are shell words (already quoted).
+  # mcpServers is REPLACED (not merged) with the declared set, so servers
+  # removed from the Nix config are pruned (including their envs). A running
+  # Claude Code can rewrite the file from its own state afterwards; restart
+  # it after switching for the cleanup to stick. enabledPlugins and
+  # extraKnownMarketplaces are replaced wholesale in settings.json too.
+  syncScript =
+    {
+      label,
+      claudeJson,
+      dir,
+      mcpFile,
+      pluginsFile,
+      marketplacesFile,
+      agentSources,
+      withCommands,
+      shareDefaults,
+    }:
+    ''
+      CLAUDE_CONFIG=${claudeJson}
+      CLAUDE_DIR=${dir}
+      ${pkgs.coreutils}/bin/mkdir -p "$CLAUDE_DIR/agents"
+
+      if [ -f "$CLAUDE_CONFIG" ]; then
+        REMOVED=$(${pkgs.jq}/bin/jq -r --slurpfile declared "${mcpFile}" '
+          (.mcpServers // {}) | keys[] as $k
+          | select(($declared[0] | has($k)) | not)
+          | $k
+        ' "$CLAUDE_CONFIG")
+        if [ -n "$REMOVED" ]; then
+          run echo "Claude Code (${label}): pruning undeclared MCP servers: $(echo "$REMOVED" | tr '\n' ' ')"
+        fi
+        # NB: use `+` not `*`, jq's `*` recursively merges the two mcpServers
+        # objects and keeps servers removed from the Nix config forever.
+        ${pkgs.jq}/bin/jq -s '.[0] + {mcpServers: .[1]}' "$CLAUDE_CONFIG" "${mcpFile}" > "$CLAUDE_CONFIG.tmp"
+        mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
+      else
+        ${pkgs.jq}/bin/jq '{mcpServers: .}' "${mcpFile}" > "$CLAUDE_CONFIG"
+      fi
+      ${lib.optionalString withCommands ''
+        # Keep commands present only in the existing file; declared ones override.
+        ${pkgs.jq}/bin/jq -s '.[0] + {commands: ((.[0].commands // {}) + .[1])}' "$CLAUDE_CONFIG" "${commandsJson}" > "$CLAUDE_CONFIG.tmp"
+        mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
+      ''}
+      run echo "Claude Code (${label}): updated MCP servers in $CLAUDE_CONFIG"
+
+      SETTINGS="$CLAUDE_DIR/settings.json"
+      if [ -f "$SETTINGS" ]; then
+        ${pkgs.jq}/bin/jq -s '.[0] + {enabledPlugins: .[1], extraKnownMarketplaces: .[2]}' \
+          "$SETTINGS" "${pluginsFile}" "${marketplacesFile}" > "$SETTINGS.tmp"
+        mv "$SETTINGS.tmp" "$SETTINGS"
+      else
+        ${pkgs.jq}/bin/jq -n --slurpfile p "${pluginsFile}" --slurpfile m "${marketplacesFile}" \
+          '{enabledPlugins: $p[0], extraKnownMarketplaces: $m[0]}' > "$SETTINGS"
+      fi
+
+      ${lib.concatMapStringsSep "\n" (src: ''
+        if [ -d "${src}" ]; then
+          for f in "${src}"/*.md; do
+            [ -e "$f" ] || continue
+            ${pkgs.coreutils}/bin/ln -sfn "$f" "$CLAUDE_DIR/agents/$(${pkgs.coreutils}/bin/basename "$f")"
+          done
+        fi
+      '') agentSources}
+      ${lib.optionalString shareDefaults ''
+        ${pkgs.coreutils}/bin/ln -sfn "$HOME/.claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
+        ${pkgs.coreutils}/bin/ln -sfn "$HOME/.claude/skills" "$CLAUDE_DIR/skills"
+      ''}
+    '';
 in
 {
   options.programs.claude-code-config = {
@@ -109,6 +184,69 @@ in
       description = "Directories of extra *.md subagent files to symlink into ~/.claude/agents.";
       example = lib.literalExpression ''[ "''${inputs.impeccable}/.claude/agents" ]'';
     };
+
+    profiles = lib.mkOption {
+      default = { };
+      description = ''
+        Extra Claude Code profiles. Each gets its own config dir under
+        XDG_CONFIG_HOME (own login, history, MCP servers, plugins) and a
+        launcher command that sets CLAUDE_CONFIG_DIR. Profiles do NOT inherit
+        the default profile's MCP servers, so customer-specific servers stay
+        isolated.
+      '';
+      example = lib.literalExpression ''
+        {
+          work = {
+            mcpServers.jira = { command = "jira-mcp"; };
+            enabledPlugins."superpowers@claude-plugins-official" = true;
+          };
+        }
+      '';
+      type = lib.types.attrsOf (
+        lib.types.submodule (
+          { name, ... }:
+          {
+            options = {
+              configDir = lib.mkOption {
+                type = lib.types.str;
+                default = "${hmConfig.xdg.configHome}/claude-code-${name}";
+                description = "CLAUDE_CONFIG_DIR for this profile (absolute path, XDG by default).";
+              };
+              alias = lib.mkOption {
+                type = lib.types.str;
+                default = "claude-${name}";
+                description = "Command that launches Claude Code with this profile.";
+              };
+              mcpServers = lib.mkOption {
+                type = lib.types.attrsOf lib.types.anything;
+                default = { };
+                description = "MCP servers (standard format) for this profile only.";
+              };
+              enabledPlugins = lib.mkOption {
+                type = lib.types.attrsOf lib.types.bool;
+                default = { };
+                description = "Plugins to enable in this profile's settings.json.";
+              };
+              extraKnownMarketplaces = lib.mkOption {
+                type = lib.types.attrsOf lib.types.anything;
+                default = { };
+                description = "Plugin marketplaces to register in this profile's settings.json.";
+              };
+              extraAgentSources = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [ ];
+                description = "Directories of *.md subagent files to symlink into this profile's agents dir.";
+              };
+              shareDefaults = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = "Symlink the default profile's CLAUDE.md and skills dir into this profile.";
+              };
+            };
+          }
+        )
+      );
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -117,77 +255,42 @@ in
       source = mcpServersJson;
     };
 
-    # Activation script to merge MCP servers and commands into ~/.claude.json
-    # mcpServers is REPLACED (not merged) with the declared set, so servers
-    # removed from the Nix config are pruned here (including their envs).
-    # A running Claude Code can rewrite the file from its own state afterwards;
-    # restart it after switching for the cleanup to stick.
-    home.activation.claudeCodeMcpConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      CLAUDE_CONFIG="$HOME/.claude.json"
-      MCP_SERVERS_FILE="${mcpServersJson}"
-      COMMANDS_FILE="${commandsJson}"
+    home.packages = lib.mapAttrsToList (
+      _: p:
+      pkgs.writeShellScriptBin p.alias ''
+        export CLAUDE_CONFIG_DIR=${lib.escapeShellArg p.configDir}
+        exec ${pkgs.claude-code}/bin/claude "$@"
+      ''
+    ) cfg.profiles;
 
-      if [ -f "$CLAUDE_CONFIG" ]; then
-        # Report MCP servers present in the file but no longer declared
-        REMOVED=$(${pkgs.jq}/bin/jq -r --slurpfile declared "$MCP_SERVERS_FILE" '
-          (.mcpServers // {}) | keys[] as $k
-          | select(($declared[0] | has($k)) | not)
-          | $k
-        ' "$CLAUDE_CONFIG")
-        if [ -n "$REMOVED" ]; then
-          run echo "Claude Code: pruning undeclared MCP servers: $(echo "$REMOVED" | tr '\n' ' ')"
-        fi
-        # Replace MCP servers wholesale (prunes stale/undeclared servers + envs).
-        # NB: use `+` not `*` — jq's `*` recursively merges the two mcpServers
-        # objects, keeping servers removed from the Nix config forever. `+`
-        # replaces the whole key.
-        ${pkgs.jq}/bin/jq -s '.[0] + {mcpServers: .[1]}' "$CLAUDE_CONFIG" "$MCP_SERVERS_FILE" > "$CLAUDE_CONFIG.tmp"
-        mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
-        # Merge commands into existing config, preserving entries present only
-        # in the existing config while letting declared ones override matching keys
-        ${pkgs.jq}/bin/jq -s '.[0] + {commands: ((.[0].commands // {}) + .[1])}' "$CLAUDE_CONFIG" "$COMMANDS_FILE" > "$CLAUDE_CONFIG.tmp"
-        mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
-        run echo "Claude Code: Updated MCP servers and commands in $CLAUDE_CONFIG"
-      else
-        # Create new config with MCP servers and commands
-        ${pkgs.jq}/bin/jq -s '{mcpServers: .[0], commands: .[1]}' "$MCP_SERVERS_FILE" "$COMMANDS_FILE" > "$CLAUDE_CONFIG"
-        run echo "Claude Code: Created $CLAUDE_CONFIG with MCP servers and commands"
-      fi
-    '';
-
-    # Activation script to merge enabledPlugins/extraKnownMarketplaces into
-    # ~/.claude/settings.json. Both keys are REPLACED wholesale (declared set
-    # wins), same pruning semantics as the MCP servers merge above.
-    home.activation.claudeCodePlugins = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      SETTINGS="$HOME/.claude/settings.json"
-      PLUGINS_FILE="${enabledPluginsJson}"
-      MARKETPLACES_FILE="${marketplacesJson}"
-
-      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$SETTINGS")"
-      if [ -f "$SETTINGS" ]; then
-        ${pkgs.jq}/bin/jq -s '.[0] + {enabledPlugins: .[1], extraKnownMarketplaces: .[2]}' \
-          "$SETTINGS" "$PLUGINS_FILE" "$MARKETPLACES_FILE" > "$SETTINGS.tmp"
-        mv "$SETTINGS.tmp" "$SETTINGS"
-      else
-        ${pkgs.jq}/bin/jq -n --slurpfile p "$PLUGINS_FILE" --slurpfile m "$MARKETPLACES_FILE" \
-          '{enabledPlugins: $p[0], extraKnownMarketplaces: $m[0]}' > "$SETTINGS"
-      fi
-      run echo "Claude Code: Updated plugins in $SETTINGS"
-    '';
-
-    # Activation script to symlink extra *.md subagents (e.g. from vendored
-    # skill repos) into ~/.claude/agents, without disturbing other agents.
-    home.activation.claudeCodeAgents = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      AGENTS_DIR="$HOME/.claude/agents"
-      ${pkgs.coreutils}/bin/mkdir -p "$AGENTS_DIR"
-      ${lib.concatMapStringsSep "\n" (src: ''
-        if [ -d "${src}" ]; then
-          for f in "${src}"/*.md; do
-            [ -e "$f" ] || continue
-            ${pkgs.coreutils}/bin/ln -sfn "$f" "$AGENTS_DIR/$(${pkgs.coreutils}/bin/basename "$f")"
-          done
-        fi
-      '') cfg.extraAgentSources}
-    '';
+    home.activation = {
+      claudeCodeSync-default = lib.hm.dag.entryAfter [ "writeBoundary" ] (syncScript {
+        label = "default";
+        claudeJson = ''"$HOME/.claude.json"'';
+        dir = ''"$HOME/.claude"'';
+        mcpFile = mcpServersJson;
+        pluginsFile = enabledPluginsJson;
+        marketplacesFile = marketplacesJson;
+        agentSources = cfg.extraAgentSources;
+        withCommands = true;
+        shareDefaults = false;
+      });
+    }
+    // lib.mapAttrs' (
+      name: p:
+      lib.nameValuePair "claudeCodeSync-${name}" (
+        lib.hm.dag.entryAfter [ "writeBoundary" "claudeCodeSync-default" ] (syncScript {
+          label = name;
+          claudeJson = lib.escapeShellArg "${p.configDir}/.claude.json";
+          dir = lib.escapeShellArg p.configDir;
+          mcpFile = jsonFormat.generate "claude-code-${name}-mcp-servers.json" p.mcpServers;
+          pluginsFile = jsonFormat.generate "claude-code-${name}-plugins.json" p.enabledPlugins;
+          marketplacesFile = jsonFormat.generate "claude-code-${name}-marketplaces.json" p.extraKnownMarketplaces;
+          agentSources = p.extraAgentSources;
+          withCommands = false;
+          inherit (p) shareDefaults;
+        })
+      )
+    ) cfg.profiles;
   };
 }
