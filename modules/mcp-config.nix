@@ -317,7 +317,11 @@ in
     # Output: Standard MCP format for Claude Code, Cursor, Antigravity
     # These tools use { command = "string", args = [...], env = { KEY = "${VAR}" } }
     programs.mcp-config.standardFormat = {
-      mcpServers = lib.mapAttrs toStandardServer config.programs.mcp.servers;
+      # `enabled = false` servers stay defined for opencode (on demand) but are
+      # kept out of every standard-format client. `enabled` defaults to null.
+      mcpServers = lib.mapAttrs toStandardServer (
+        lib.filterAttrs (_: s: (s.enabled or null) != false) config.programs.mcp.servers
+      );
     };
 
     home.packages =
