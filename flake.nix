@@ -4,25 +4,34 @@
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }: {
-    checks.x86_64-linux.claude-launcher =
+    checks.x86_64-linux.account-launcher =
       let
         pkgs = nixpkgs.legacyPackages.x86_64-linux;
-        mk = import ./modules/claude-launcher.nix { inherit pkgs; inherit (nixpkgs) lib; };
-        stub = pkgs.writeShellScript "stub" ''echo "token=$CLAUDE_CODE_OAUTH_TOKEN dir=$CLAUDE_CONFIG_DIR"'';
-        missing = mk { name = "claude-m"; configDir = "/cfg"; tokenFile = "/nonexistent/tok"; exe = stub; };
-        noTok = mk { name = "claude-n"; configDir = "/cfg"; exe = stub; };
-        viaFile = mk { name = "claude-f"; configDir = "/cfg"; tokenFile = "/tmp/claude-launcher-check-tok"; exe = stub; };
+        mk = import ./modules/account-launcher.nix { inherit pkgs; inherit (nixpkgs) lib; };
+        stub = pkgs.writeShellScript "stub" ''echo "a=$A b=$B dir=$D"'';
+        keyA = pkgs.writeText "keyA" "alpha\n";
+        keyB = pkgs.writeText "keyB" "  beta  \n";
+        empty = pkgs.writeText "empty" "  \n";
+        two = mk { name = "t-two"; exe = stub; env = { A = keyA; B = keyB; }; fixed.D = "/cfg"; };
+        missing = mk { name = "t-miss"; exe = stub; env.A = "/nonexistent/tok"; };
+        emptyF = mk { name = "t-empty"; exe = stub; env.A = empty; };
+        bare = mk { name = "t-bare"; exe = stub; fixed.D = "/cfg"; };
+        withPre = mk { name = "t-pre"; exe = stub; pre = "echo pre-ran >&2"; };
       in
-      pkgs.runCommand "claude-launcher-check" { } ''
+      pkgs.runCommand "account-launcher-check" { } ''
         set -eu
-        # missing token file: hard error that names the file
-        if ${missing}/bin/claude-m 2>err; then echo "expected failure"; exit 1; fi
+        # two secrets (whitespace stripped) plus a fixed var
+        [ "$(${two}/bin/t-two)" = "a=alpha b=beta dir=/cfg" ]
+        # missing and empty files are hard errors that name the file
+        if ${missing}/bin/t-miss 2>err; then echo "expected failure"; exit 1; fi
         grep -q "token file /nonexistent/tok missing or empty" err
-        # no tokenFile: nothing exported, config dir kept, script has no token logic
-        ${noTok}/bin/claude-n | grep -q "token= dir=/cfg"
-        if grep -q CLAUDE_CODE_OAUTH_TOKEN ${noTok}/bin/claude-n; then echo "token logic leaked"; exit 1; fi
-        # the token path is baked in, never its value
-        grep -q "/tmp/claude-launcher-check-tok" ${viaFile}/bin/claude-f
+        if ${emptyF}/bin/t-empty 2>err; then echo "expected failure"; exit 1; fi
+        grep -q "missing or empty" err
+        # no secrets: no token logic at all
+        [ "$(${bare}/bin/t-bare)" = "a= b= dir=/cfg" ]
+        if grep -q "missing or empty" ${bare}/bin/t-bare; then echo "token logic leaked"; exit 1; fi
+        # pre hook runs before exec
+        preout="$(${withPre}/bin/t-pre 2>&1)"; case "$preout" in *pre-ran*) ;; *) echo "pre hook did not run"; exit 1;; esac
         touch $out
       '';
 

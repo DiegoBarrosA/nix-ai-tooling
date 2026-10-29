@@ -20,7 +20,7 @@ let
   cfg = config.programs.claude-code-config;
   mcpCfg = config.programs.mcp-config;
   jsonFormat = pkgs.formats.json { };
-  mkLauncher = import ./claude-launcher.nix { inherit pkgs lib; };
+  mkLauncher = import ./account-launcher.nix { inherit pkgs lib; };
 
   # Merge shared MCP servers with any Claude-specific extras
   mcpServersConfig = mcpCfg.standardFormat.mcpServers // cfg.extraMcpServers;
@@ -275,18 +275,17 @@ in
     home.packages = lib.concatLists (
       lib.mapAttrsToList (
         _: p:
-        [
-          (mkLauncher {
-            name = p.alias;
-            inherit (p) configDir tokenFile;
-            exe = "${pkgs.claude-code}/bin/claude";
-          })
-        ]
-        ++ lib.optional (p.tokenFile != null && cfg.acpPackage != null) (mkLauncher {
-          name = "${p.alias}-acp";
-          inherit (p) configDir tokenFile;
-          exe = "${cfg.acpPackage}/bin/claude-agent-acp";
-        })
+        let
+          mk = name: exe: mkLauncher {
+            inherit name exe;
+            fixed.CLAUDE_CONFIG_DIR = p.configDir;
+            env = lib.optionalAttrs (p.tokenFile != null) { CLAUDE_CODE_OAUTH_TOKEN = p.tokenFile; };
+          };
+        in
+        [ (mk p.alias "${pkgs.claude-code}/bin/claude") ]
+        ++ lib.optional (p.tokenFile != null && cfg.acpPackage != null) (
+          mk "${p.alias}-acp" "${cfg.acpPackage}/bin/claude-agent-acp"
+        )
       ) cfg.profiles
     );
 
