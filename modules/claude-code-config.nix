@@ -20,6 +20,7 @@ let
   cfg = config.programs.claude-code-config;
   mcpCfg = config.programs.mcp-config;
   jsonFormat = pkgs.formats.json { };
+  mkLauncher = import ./claude-launcher.nix { inherit pkgs lib; };
 
   # Merge shared MCP servers with any Claude-specific extras
   mcpServersConfig = mcpCfg.standardFormat.mcpServers // cfg.extraMcpServers;
@@ -185,6 +186,12 @@ in
       example = lib.literalExpression ''[ "''${inputs.impeccable}/.claude/agents" ]'';
     };
 
+    acpPackage = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      default = null;
+      description = "claude-agent-acp package. When set, token profiles also get a `<alias>-acp` launcher.";
+    };
+
     profiles = lib.mkOption {
       default = { };
       description = ''
@@ -237,6 +244,16 @@ in
                 default = [ ];
                 description = "Directories of *.md subagent files to symlink into this profile's agents dir.";
               };
+              tokenFile = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = ''
+                  Path to a file holding a `claude setup-token` token (for example a
+                  sops secret under /run/secrets). The launcher exports it as
+                  CLAUDE_CODE_OAUTH_TOKEN at start and fails if the file is missing
+                  or empty. The token is never written to the Nix store.
+                '';
+              };
               shareDefaults = lib.mkOption {
                 type = lib.types.bool;
                 default = true;
@@ -255,13 +272,23 @@ in
       source = mcpServersJson;
     };
 
-    home.packages = lib.mapAttrsToList (
-      _: p:
-      pkgs.writeShellScriptBin p.alias ''
-        export CLAUDE_CONFIG_DIR=${lib.escapeShellArg p.configDir}
-        exec ${pkgs.claude-code}/bin/claude "$@"
-      ''
-    ) cfg.profiles;
+    home.packages = lib.concatLists (
+      lib.mapAttrsToList (
+        _: p:
+        [
+          (mkLauncher {
+            name = p.alias;
+            inherit (p) configDir tokenFile;
+            exe = "${pkgs.claude-code}/bin/claude";
+          })
+        ]
+        ++ lib.optional (p.tokenFile != null && cfg.acpPackage != null) (mkLauncher {
+          name = "${p.alias}-acp";
+          inherit (p) configDir tokenFile;
+          exe = "${cfg.acpPackage}/bin/claude-agent-acp";
+        })
+      ) cfg.profiles
+    );
 
     home.activation = {
       claudeCodeSync-default = lib.hm.dag.entryAfter [ "writeBoundary" ] (syncScript {

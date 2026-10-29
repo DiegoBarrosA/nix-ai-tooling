@@ -109,3 +109,11 @@ programs.opencode-config.dispatcher.contexts = {
   groq = { scriptName = "ocg"; apiKeyEnvVar = "GROQ_API_KEY"; };
 };
 ```
+
+## Claude Code profile tokens
+
+`programs.claude-code-config.profiles.<name>.tokenFile` points at a file with a
+`claude setup-token` token (for example a sops secret). The `claude-<name>`
+launcher exports it as `CLAUDE_CODE_OAUTH_TOKEN` at start and exits with an
+error if the file is missing or empty. Set `programs.claude-code-config.acpPackage`
+to also get a `claude-<name>-acp` launcher for ACP clients.
