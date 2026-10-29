@@ -70,7 +70,7 @@
         set -eu
         export HOME=$TMPDIR/h
         o="$(${pkgNamed "opencode-a"}/bin/opencode-a)"
-        case "$o" in *"key=k1"*"cfg=/build/h/.config/agent-accounts/opencode-a/config"*"data=/build/h/.config/agent-accounts/opencode-a/data"*) ;; *) echo "opencode: $o"; exit 1;; esac
+        case "$o" in *"key=k1"*"cfg= "*"data=/build/h/.config/agent-accounts/opencode-a/data"*) ;; *) echo "opencode: $o"; exit 1;; esac
         o="$(${pkgNamed "opencode-a-acp"}/bin/opencode-a-acp)"
         case "$o" in "opencode acp"*) ;; *) echo "opencode acp: $o"; exit 1;; esac
         # antigravity: own HOME, key exported, settings seeded with modelProvider gemini

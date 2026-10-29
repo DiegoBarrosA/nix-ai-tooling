@@ -1,7 +1,7 @@
 # Per-account launchers for opencode and Google Antigravity (agy).
 # Each account reads its API key from a file (for example a sops secret) at
 # launch and gets its own data/config/HOME dir, so accounts never share state.
-#   opencode-<name>, opencode-<name>-acp   (key in <envVar>; own XDG dirs)
+#   opencode-<name>, opencode-<name>-acp   (key in <envVar>; own XDG_DATA_HOME only, so git/gh/HM config still apply)
 #   agy-<name>, agy-<name>-acp             (key in GEMINI_API_KEY; own HOME)
 # Antigravity needs modelProvider=gemini in settings.json or the key is ignored;
 # the launcher seeds that file when it is missing. ACP launchers appear only
@@ -99,7 +99,6 @@ in
               inherit exe;
               env.${a.envVar} = a.keyFile;
               fixed = {
-                XDG_CONFIG_HOME = "${root "opencode-${name}"}/config";
                 XDG_DATA_HOME = "${root "opencode-${name}"}/data";
               };
             };
