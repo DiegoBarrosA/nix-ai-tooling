@@ -35,6 +35,53 @@
         touch $out
       '';
 
+    checks.x86_64-linux.agent-accounts =
+      let
+        pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        lib = nixpkgs.lib;
+        stubBin = name: pkgs.writeShellScriptBin name ''echo "$(basename "$0") $* key=$OPENCODE_API_KEY gem=$GEMINI_API_KEY cfg=$XDG_CONFIG_HOME data=$XDG_DATA_HOME home=$HOME"'';
+        keyF = toString (pkgs.writeText "k" "k1\n");
+        evaluated = lib.evalModules {
+          modules = [
+            ./modules/agent-accounts.nix
+            {
+              options.home.packages = lib.mkOption { type = lib.types.listOf lib.types.package; };
+              options.home.homeDirectory = lib.mkOption { type = lib.types.str; };
+              options.assertions = lib.mkOption { type = lib.types.listOf lib.types.anything; };
+              config = {
+                _module.args.pkgs = pkgs;
+                home.homeDirectory = "/build/h";
+                programs.agent-accounts = {
+                  opencodePackage = stubBin "opencode";
+                  antigravityCliPackage = stubBin "agy";
+                  antigravityAcpPackage = stubBin "agy_acp_server";
+                  opencode.a = { keyFile = keyF; };
+                  antigravity.b = { keyFile = keyF; };
+                };
+              };
+            }
+          ];
+        };
+        names = map (p: p.name) evaluated.config.home.packages;
+        pkgNamed = n: lib.findFirst (p: p.name == n) null evaluated.config.home.packages;
+      in
+      assert lib.sort lib.lessThan names == [ "agy-b" "agy-b-acp" "opencode-a" "opencode-a-acp" ];
+      pkgs.runCommand "agent-accounts-check" { } ''
+        set -eu
+        export HOME=$TMPDIR/h
+        o="$(${pkgNamed "opencode-a"}/bin/opencode-a)"
+        case "$o" in *"key=k1"*"cfg=/build/h/.config/agent-accounts/opencode-a/config"*"data=/build/h/.config/agent-accounts/opencode-a/data"*) ;; *) echo "opencode: $o"; exit 1;; esac
+        o="$(${pkgNamed "opencode-a-acp"}/bin/opencode-a-acp)"
+        case "$o" in "opencode acp"*) ;; *) echo "opencode acp: $o"; exit 1;; esac
+        # antigravity: own HOME, key exported, settings seeded with modelProvider gemini
+        o="$(${pkgNamed "agy-b"}/bin/agy-b)"
+        case "$o" in *"gem=k1"*"home=/build/h/.config/agent-accounts/antigravity-b/home"*) ;; *) echo "agy: $o"; exit 1;; esac
+        grep -q '"modelProvider":"gemini"' /build/h/.config/agent-accounts/antigravity-b/home/.gemini/antigravity-cli/settings.json
+        o="$(${pkgNamed "agy-b-acp"}/bin/agy-b-acp)"
+        case "$o" in "agy_acp_server"*) ;; *) echo "agy acp: $o"; exit 1;; esac
+        touch $out
+      '';
+
     homeManagerModules = rec {
       mcp-config = import ./modules/mcp-config.nix;
       opencode-config = import ./modules/opencode-config.nix;
@@ -46,6 +93,7 @@
       ai-skills = import ./modules/ai-skills.nix;
       ai-system-prompt = import ./modules/ai-system-prompt.nix;
       happier-config = import ./modules/happier-config.nix;
+      agent-accounts = import ./modules/agent-accounts.nix;
       default = { ... }: {
         imports = [
           mcp-config
@@ -58,6 +106,7 @@
           ai-skills
           ai-system-prompt
           happier-config
+          agent-accounts
         ];
       };
     };
