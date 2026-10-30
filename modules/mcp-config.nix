@@ -225,6 +225,34 @@ in
       };
     };
 
+    # x-context MCP (ServiceRocket context platform + Loom transcripts)
+    xContext = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable x-context MCP server for ServiceRocket context platform
+          (x.servicerocket.com) and Loom transcripts. Requires auth cookies
+          to be set via POST to localhost:9999/refresh.
+        '';
+      };
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = customPkgs.x-context-mcp;
+        defaultText = lib.literalExpression "customPkgs.x-context-mcp";
+        description = "The x-context-mcp package to use.";
+      };
+      autostart = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether opencode should auto-start this server on launch.
+          Set to false to keep it defined but lazily disabled (reduces
+          context creep); enable on demand via `opencode mcp`.
+        '';
+      };
+    };
+
     # Extra MCP servers
     extraMcpServers = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
@@ -310,6 +338,13 @@ in
             enabled = false;
           };
         }
+        // lib.optionalAttrs cfg.xContext.enable {
+          x-context = {
+            command = "${cfg.xContext.package}/bin/x-context-mcp";
+          } // lib.optionalAttrs (!cfg.xContext.autostart) {
+            enabled = false;
+          };
+        }
         // cfg.extraMcpServers
       );
     };
@@ -329,6 +364,7 @@ in
       ++ lib.optional cfg.jobspy.enable cfg.jobspy.package
       ++ lib.optional cfg.github.enable cfg.github.package
       ++ lib.optional cfg.playwright.enable cfg.playwright.package
-      ++ lib.optional cfg.thunderbird.enable cfg.thunderbird.package;
+      ++ lib.optional cfg.thunderbird.enable cfg.thunderbird.package
+      ++ lib.optional cfg.xContext.enable cfg.xContext.package;
   };
 }
